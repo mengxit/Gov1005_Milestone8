@@ -56,19 +56,36 @@ library(gifski)
 library(gganimate)
 library(data.table)
 library(png)
+library(plyr)
 library(tidyverse)
 
 #DATA LOADING: Homeland Security Part
 
-#load the immigration by continent data
-#clean up names and values
+# load the immigration by continent data
+# clean up names and values
+# filter out "Total" and "Unknown"
 
 immigration_continent <- read_xlsx("raw_data/immigration_yearbook/Immigration_ByContinent.xlsx", na = c("", "NA")) %>%
-  clean_names()
+  clean_names()%>%
+  filter(region %in% c("Africa", "Asia", "Europe", "North America", "Oceania", "South America")) %>%
+  mutate(year = as.integer(year))
 
-#load the immigration by country data
-#clean up names and values
-# "-" means 0, D means cannot disclose, will do further wrangling once we are in the anlaysis stage
+# rename columns
+setnames(immigration_continent, "immediate_relatives_of_u_s_citizens", "immediate_relatives")
+
+setnames(immigration_continent, "family_sponsored_preferences", "family")
+
+setnames(immigration_continent, "employment_based_preferences", "employment")
+
+setnames(immigration_continent, "refugees_and_asylees", "refugee")
+
+# create a long format for continent level data
+immigration_continent_long <- immigration_continent %>%
+      select(region, year, immediate_relatives, family,employment, diversity, refugee, other) %>%
+      gather(key = "admission_class", value = "count", immediate_relatives: other)
+
+# load the immigration by country data
+# clean up names and values
 
 immigration_country_2017 <- read_xlsx("raw_data/immigration_yearbook/2017_table10d.xlsx", na = c("", "NA")) %>%
   clean_names() %>%
@@ -119,17 +136,62 @@ immigration_country <- rbind(immigration_country_2009,
                              immigration_country_2016,
                              immigration_country_2017)
 
-# skim the consolidated database
-skim(immigration_country)
+# clean up table
+# convert year to integer for graphing later
+immigration_country <- immigration_country %>%
+                          filter(region_and_country_of_birth != "Total") %>%
+                          drop_na %>%
+                          mutate(year = as.integer(year))
 
-# identified one wrong record from skimming (named "Country" with all NAs)
-# drop that row
-# note that this table contains rows with both:
-#   1) immigration by country by year
-#   2) immigration by year, for all country
-# will need to separate the two later on in mapping
+# rename columns
+setnames(immigration_country, "region_and_country_of_birth", "country")
 
-immigration_country %>% drop_na()
+setnames(immigration_country, "immediate_relatives_of_u_s_citizens", "immediate_relatives")
+
+setnames(immigration_country, "family_sponsored_preferences", "family")
+
+setnames(immigration_country, "employment_based_preferences", "employment")
+
+setnames(immigration_country, "refugees_and_asylees", "refugee")
+
+# "-" means 0, D means cannot disclose
+# treat both as 0 in this case
+# convert to numeric value
+
+# family column
+immigration_country$family <- revalue(immigration_country$family, c("-"= "0"))
+immigration_country$family <- revalue(immigration_country$family, c("D"= "0"))
+immigration_country$family <- as.numeric(immigration_country$family)
+
+# employment column
+immigration_country$employment <- revalue(immigration_country$employment, c("-"= "0"))
+immigration_country$employment <- revalue(immigration_country$employment, c("D"= "0"))
+immigration_country$employment <- as.numeric(immigration_country$employment)
+
+# relative column
+immigration_country$immediate_relatives <- revalue(immigration_country$immediate_relatives, c("-"= "0"))
+immigration_country$immediate_relatives <- revalue(immigration_country$immediate_relatives, c("D"= "0"))
+immigration_country$immediate_relatives <- as.numeric(immigration_country$immediate_relatives)
+
+# diversity column
+immigration_country$diversity <- revalue(immigration_country$diversity, c("-"= "0"))
+immigration_country$diversity <- revalue(immigration_country$diversity, c("D"= "0"))
+immigration_country$diversity <- as.numeric(immigration_country$diversity)
+
+# refugee column
+immigration_country$refugee <- revalue(immigration_country$refugee, c("-"= "0"))
+immigration_country$refugee <- revalue(immigration_country$refugee, c("D"= "0"))
+immigration_country$refugee <- as.numeric(immigration_country$refugee)
+
+# other column
+immigration_country$other <- revalue(immigration_country$other, c("-"= "0"))
+immigration_country$other <- revalue(immigration_country$other, c("D"= "0"))
+immigration_country$other <- as.numeric(immigration_country$other)
+
+# create a long format for continent level data
+immigration_country_long <- immigration_country %>%
+      select(country, year, immediate_relatives, family,employment, diversity, refugee, other) %>%
+      gather(key = "admission_class", value = "count", immediate_relatives: other)
 
 # make a clean data directory
 dir.create("clean_data")
@@ -144,14 +206,19 @@ english_by_country <-
 read_xlsx("raw_data/english_speaking_immigrants/english_by_country.xlsx", na = c("", "NA")) %>% clean_names()
 
 # write the clean data to csv
-write.csv(immigration_country, file = "clean_data/immigration_country.csv")
-write.csv(immigration_country, file = "clean_data/immigration_continent.csv")
-write.csv(english_by_continent, file = "clean_data/english_continent.csv")
-write.csv(english_by_country, file = "clean_data/english_country.csv")
-
+write.csv(immigration_country, file = "clean_data/immigration_country.csv", row.names = FALSE)
+write.csv(immigration_continent, file = "clean_data/immigration_continent.csv", row.names = FALSE)
+write.csv(english_by_continent, file = "clean_data/english_continent.csv", row.names = FALSE)
+write.csv(english_by_country, file = "clean_data/english_country.csv", row.names = FALSE)
 
 ```
 
+
+```{r}
+    immigration_country_current <- immigration_country_long %>% 
+      filter(country == "Mexico")
+
+ggplot(immigration_country_current, aes(x = year, y = count, fill = admission_class)) + geom_area(position = 'stack') + labs(y = "Total Immigrants", x = "Year", fill = "Admission Class") 
 
 
 
