@@ -193,6 +193,9 @@ immigration_country_long <- immigration_country %>%
       select(country, year, immediate_relatives, family,employment, diversity, refugee, other) %>%
       gather(key = "admission_class", value = "count", immediate_relatives: other)
 
+# rearrange the order of categorical variables for labelling later
+immigration_country_long$admission_class <- factor(immigration_country_long$admission_class, levels = c("diversity", "employment", "immediate_relatives", "family", "refugee", "other"))
+
 # make a clean data directory
 dir.create("clean_data")
 
@@ -208,17 +211,127 @@ read_xlsx("raw_data/english_speaking_immigrants/english_by_country.xlsx", na = c
 # write the clean data to csv
 write.csv(immigration_country, file = "clean_data/immigration_country.csv", row.names = FALSE)
 write.csv(immigration_continent, file = "clean_data/immigration_continent.csv", row.names = FALSE)
+write.csv(immigration_country_long, file = "clean_data/immigration_country_long.csv", row.names = FALSE)
+write.csv(immigration_continent_long, file = "clean_data/immigration_continent_long.csv", row.names = FALSE)
 write.csv(english_by_continent, file = "clean_data/english_continent.csv", row.names = FALSE)
 write.csv(english_by_country, file = "clean_data/english_country.csv", row.names = FALSE)
 
 ```
 
 
-```{r}
+```{r graph making}
+
+
+# filtering 
     immigration_country_current <- immigration_country_long %>% 
       filter(country == "Mexico")
 
-ggplot(immigration_country_current, aes(x = year, y = count, fill = admission_class)) + geom_area(position = 'stack') + labs(y = "Total Immigrants", x = "Year", fill = "Admission Class") 
+    english_country_current <- english_by_country %>%
+      filter(country == "India")
+    
+    english_country_current_summary <- english_=country_current %>%
+      summarize(total = sum(total_number), 
+                total_very_well = sum(population_very_well),
+                not_very_well = total - total_very_well) %>%
+      select(total_very_well, not_very_well)
+    
+    
+english_country_current_summary <- english_country_current_summary%>%
+      gather(key = "english", value = "population",total_very_well:not_very_well)
+
+# Compute percentages
+english_country_current_summary$fraction = english_country_current_summary$population / sum(english_country_current_summary$population)
 
 
+# Compute the cumulative percentages (top of each rectangle)
+english_country_current_summary$ymax = cumsum(english_country_current_summary$fraction)
+
+# Compute the bottom of each rectangle
+english_country_current_summary$ymin = c(0, head(english_country_current_summary$ymax, n=-1))
+  
+# percent function
+percent <- function(x, digits = 1, format = "f", ...) {
+  paste0(formatC(100 * x, format = format, digits = digits, ...), "%")
+}
+
+
+ggplot(immigration_country_current, 
+       aes(x = year, y = count, fill = admission_class)) +
+      geom_area(position = 'stack') + 
+      labs(y = "Total Immigrants", x = "Year", fill = "Admission Class") + 
+      scale_fill_discrete(labels = c("Diversity", "Employment","Immediate Relatives", "Other Relatives", "Refugee", "Other")) +  
+      scale_x_continuous(breaks = c(2009, 2011, 2013, 2015, 2017))
+
+ggplot(english_country_current, aes(x = year, y = percentage_very_well)) +
+  geom_line() + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1.1)) + 
+  labs(y = "% Speaking English Very Well", x = "Year")
+
+ggplot(english_country_current_summary, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=english)) +
+     geom_rect() +
+     coord_polar(theta="y") +
+     xlim(c(2, 4)) + 
+     scale_fill_discrete(labels = c("Not Very Well", "Very Well")) +
+     labs(title = paste0(percent(english_country_current_summary$fraction[1]) ,"  people in ", " Speak English Very Well"), fill = "English Speaking Ability") +
+     theme(axis.text.y=element_blank(), 
+      axis.ticks=element_blank())
+
+
+
+library(cowplot)
+library(ggridges)
+library(rstanarm)
+library(broom)
+
+ranking <- immigration_country %>%
+              group_by(country) %>%
+              summarize(total = sum(total)) %>%
+              arrange(desc(total)) %>%
+              select(country) %>%
+              head(10)
+
+
+
+immigration_country_top_10 <- immigration_country %>%
+                                    filter(country %in% ranking$country)
+
+
+
+
+ranking_20 <- immigration_country %>%
+              filter(year == 2009) %>%
+              arrange(desc(total)) %>%
+              select(country) %>%
+              head(20)
+
+
+immigration_country_top_20 <- immigration_country %>%
+                                    filter(country %in% ranking_20$country, year == 2009) %>%
+                                    arrange(desc(total))
+
+
+
+ggplot(immigration_country_top_20, aes(x = reorder(country, -total), y = total)) + geom_col(aes(fill = total)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + scale_fill_gradient2(low = "blue", high = "red", midpoint = median(immigration_country_top_20$total)) + labs(x = "Country", y = "Total Immigrants","Top ")
+
+
+  
+intro_graph <- ggplot(immigration_country_top_10, aes(x = total, y = country, group = country)) + geom_density_ridges(fill = "orange") + labs(x = "Total Immigrants", y = "Country", title = "Top 10 Countries with Most Immigration into US ", caption = "2009 - 2017")
+
+ggsave("Immigration_Explorer/intro_graph.png", intro_graph)
+
+
+ggplot(immigration_country_top_10, aes(x = `total`, y = `country`, fill = ..x..)) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis(name = "total", option = "C") +
+  labs(title = 'Temperatures in Lincoln NE in 2016')
+  
+  
+
+
+
+  
+  
+
+
+```
 
