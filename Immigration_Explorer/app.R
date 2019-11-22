@@ -37,14 +37,16 @@ percent <- function(x, digits = 1, format = "f", ...) {
 
 ui<- navbarPage("Gov1005 Final Project: US Immigration Explorer",
                 tabPanel("Overview",
-                         headerPanel("IMMIGRATION INTO US BY SOURCE COUNTRY - WILL UPDATE"),
-                         imageOutput("overview", width = "20%", height = "20%"),
-                         imageOutput("barchart")
-
+                         headerPanel("IMMIGRATION INTO US BY SOURCE COUNTRY - WILL UPDATE TEXT"),
+                         sliderInput("year", "Year:",
+                                     min = 2009, max = 2017,
+                                     value = 2009),
+                         #imageOutput("overview", width = "20%", height = "20%"),
+                         plotOutput("barchart")
                         
                          ),
                 tabPanel("A Closer Look",
-                         headerPanel("CLOSER LOOK INTO A SOURCE COUNTRY - WILL UPDATE"),
+                         headerPanel("CLOSER LOOK INTO A SOURCE COUNTRY - PLEASE SELECT - WILL UPDATE TEXT"),
                          fluidRow(
                           column(8, align="left",
                           selectInput("variable", "Country:",
@@ -68,6 +70,28 @@ server <- function(input, output, session){
   
   # render the bar chart on the opening page
   
+  output$barchart <- renderPlot({
+    
+    # filter down to top 20 countries in a particular year
+    immigration_current10 <- immigration_country %>%
+                                          filter(year == as.numeric(input$year)) %>%
+                                          arrange(desc(total)) %>%
+                                          head(20)
+    
+    # create bar chart
+    barchart <- ggplot(immigration_current10, 
+                       aes(x = reorder(country, -total), y = total)) + 
+      geom_col(aes(fill = total)) + 
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+      scale_fill_gradient2(low = "blue", high = "red", midpoint = median(immigration_current10$total)) +
+      labs(x = "Country", y = "Total Immigrants",title = paste0("20 Source Countries with Most Immigrants into US in ", input$year))
+      
+    # return image
+    
+    print(barchart)
+    
+  })
+  
   
 # render the trend chart on the left
   output$trendchart <- renderPlot({
@@ -75,7 +99,8 @@ server <- function(input, output, session){
     # this chart is going to be the graph shown on the left
     immigration_country_current <- immigration_country_long %>% 
       filter(country == input$variable)
-  
+    
+    # create the chart
     graph_left <- ggplot(immigration_country_current, 
                          aes(x = year, y = count, fill = admission_class)) +
         geom_area(position = 'stack') + 
