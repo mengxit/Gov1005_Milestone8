@@ -11,7 +11,7 @@ Every year, there are roughly ~1M immigrants coming to the US from various origi
 
 One important metrics for fitting into the American society, is English speaking capability. According to the US census bureau, in 2017, while 91% of all US citizens self-identified as speaking English "very well", the number among all foreigh-born citizens was only 52%.
 
-Would this impairment in English-speaking capability among immigrants differ by origin, channel of admission, or time? This visualization project aims to provide users with a tool to explore this issue, during the time span of 2009 - 2017.
+Would this impairment in English-speaking capability among immigrants differ by origin, channel of admission, or time? This visualization project aims to provide users with a tool to explore this issue, during the time span of 2007 - 2017.
 
 *time span determined by data availability
 
@@ -63,6 +63,7 @@ library(rstanarm)
 library(broom)
 library(tidyverse)
 
+#####
 #DATA LOADING: Homeland Security Part
 
 # load the immigration by continent data
@@ -128,9 +129,19 @@ immigration_country_2009 <- read_xlsx("raw_data/immigration_yearbook/2009_table1
   clean_names()%>%
   mutate(year = 2009)
 
+immigration_country_2008 <- read_xlsx("raw_data/immigration_yearbook/2009_table10d.xlsx", na = c("", "NA")) %>%
+  clean_names()%>%
+  mutate(year = 2008)
+
+immigration_country_2007 <- read_xlsx("raw_data/immigration_yearbook/2009_table10d.xlsx", na = c("", "NA")) %>%
+  clean_names()%>%
+  mutate(year = 2007)
+
 
 #Combine the country tables together
-immigration_country <- rbind(immigration_country_2009,
+immigration_country <- rbind(immigration_country_2007,
+                             immigration_country_2008,
+                             immigration_country_2009,
                              immigration_country_2010,
                              immigration_country_2011,
                              immigration_country_2012,
@@ -203,6 +214,7 @@ immigration_country_long$admission_class <- factor(immigration_country_long$admi
 # make a clean data directory
 dir.create("clean_data")
 
+######
 #DATA LOADING: US Census Bureau Part
 #load english speaking capability by continent
 
@@ -223,7 +235,24 @@ write.csv(english_by_country, file = "clean_data/english_country.csv", row.names
 ```
 
 
-```{r graph making - testing for app.R}
+```{r investigation/graph making - testing for app.R}
+
+# examine the top 10 countries with the most immigrants
+# Mexico 
+# China, People's Republic
+# India 
+# Philippines 
+# Dominican Republic
+# Cuba 
+# Vietnam  
+# Korea, South
+# Colombia
+# Haiti
+top10 <- immigration_country %>%
+          group_by(country) %>%
+          summarize(total = sum(total)) %>%
+          arrange(desc(total))
+          head(10)
 
 # create a intro_graph
 
